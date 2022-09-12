@@ -48,11 +48,11 @@ class DataPrefetcher():
         #         if k != 'meta':
         #             self.batch[k] = self.batch[k].to(device=self.opt.device, non_blocking=True)
 
-            # With Amp, it isn't necessary to manually convert data to half.
-            # if args.fp16:
-            #     self.next_input = self.next_input.half()
-            # else:
-            #     self.next_input = self.next_input.float()
+        # With Amp, it isn't necessary to manually convert data to half.
+        # if args.fp16:
+        #     self.next_input = self.next_input.half()
+        # else:
+        #     self.next_input = self.next_input.float()
 
     def next(self):
         torch.cuda.current_stream().wait_stream(self.stream)
@@ -70,17 +70,17 @@ class EMA_logit_scale():
         self.clip_number = 0
 
     def update(self):
-        self.buffer = self.momentum*self.buffer + \
-            (1-self.momentum)*self.param.data
+        self.buffer = self.momentum * self.buffer + \
+                      (1 - self.momentum) * self.param.data
 
     def clamp(self):
-        if (self.param-self.buffer) > self.threshold:
+        if (self.param - self.buffer) > self.threshold:
             self.param.data = torch.as_tensor(
-                self.buffer+self.threshold, dtype=self.param.dtype, device=self.param.device)
+                self.buffer + self.threshold, dtype=self.param.dtype, device=self.param.device)
             self.clip_number += 1
-        elif (self.buffer-self.param) > self.threshold:
+        elif (self.buffer - self.param) > self.threshold:
             self.param.data = torch.as_tensor(
-                self.buffer-self.threshold, dtype=self.param.dtype, device=self.param.device)
+                self.buffer - self.threshold, dtype=self.param.dtype, device=self.param.device)
             self.clip_number += 1
         # self.param.data = torch.as_tensor(
         #     3.125, dtype=self.param.dtype, device=self.param.device)
@@ -97,8 +97,8 @@ class ClsSolver(BaseSolver):
         # ipdb.set_trace()
         self.build_model()
         self.build_optimizer()
-        self.build_data()
-        self.build_lr_scheduler()
+        # self.build_data()
+        # self.build_lr_scheduler()
         # send_info(self.prototype_info)
 
     def setup_env(self):
@@ -137,16 +137,16 @@ class ClsSolver(BaseSolver):
             else:
                 self.state = {}
                 self.state['last_iter'] = 0
-            #pretrain from moco
-            if self.config.saver.pretrain.get('pretrain_from', None)  == 'moco':
+            # pretrain from moco
+            if self.config.saver.pretrain.get('pretrain_from', None) == 'moco':
                 encoder_state = {}
                 for key, value in self.state['model'].items():
                     if 'encoder_q' in key and 'fc' not in key and 'attnpool' not in key:
                         new_key = key.replace('encoder_q', 'visual')
                         encoder_state[new_key] = value
                 self.state = {'model': encoder_state, 'last_iter': 0, 'optimizer': None}
-            #pretrain from supervised
-            if self.config.saver.pretrain.get('pretrain_from', None)  == 'supervised':
+            # pretrain from supervised
+            if self.config.saver.pretrain.get('pretrain_from', None) == 'supervised':
                 encoder_state = {}
                 for key, value in self.state['model'].items():
                     if 'fc' not in key:
@@ -172,7 +172,7 @@ class ClsSolver(BaseSolver):
             return None
         num = [int(ckpt.split('.')[0][5:]) for ckpt in ckpt_list]
         num.sort()
-        last_checkpoint_path = 'checkpoints/ckpt_' + str(num[-1])+'.pth.tar'
+        last_checkpoint_path = 'checkpoints/ckpt_' + str(num[-1]) + '.pth.tar'
         return last_checkpoint_path
 
     def build_model(self):
@@ -194,13 +194,13 @@ class ClsSolver(BaseSolver):
 
         # handle fp16
         if self.config.optimizer.type == 'FP16SGD' or \
-           self.config.optimizer.type == 'FP16RMSprop' or \
-           self.config.optimizer.type == 'FP16AdamW'or \
-           self.config.optimizer.type == 'FP16AdamW_SGD':
+                self.config.optimizer.type == 'FP16RMSprop' or \
+                self.config.optimizer.type == 'FP16AdamW' or \
+                self.config.optimizer.type == 'FP16AdamW_SGD':
             self.fp16 = True
             self.fused_fp16 = False
         elif self.config.optimizer.type == 'FusedFP16SGD' or \
-             self.config.optimizer.type == 'FusedFP16AdamW':
+                self.config.optimizer.type == 'FusedFP16AdamW':
             self.fp16 = True
             self.fused_fp16 = True
 
@@ -231,10 +231,12 @@ class ClsSolver(BaseSolver):
             link.fp16.init()
             # Note: The module is converted to fp16!
             self.model.half()
-        self.model = DistModule(self.model, self.config.dist.sync)
+
+        # self.model = DistModule(self.model, self.config.dist.sync)
 
         if 'model' in self.state:
-            load_state_model(self.model, self.state['model'])
+            # load_state_model(self.model, self.state['model'])
+            load_state_model(self.model, {k.replace("module.", ""): v for k, v in self.state['model'].items()})
 
     def build_optimizer(self):
 
@@ -254,7 +256,7 @@ class ClsSolver(BaseSolver):
         if 'pconfig' in opt_config:
             pconfig.update(opt_config['pconfig'])
 
-        #if opt_config['type'] == 'AdamW_SGD':
+        # if opt_config['type'] == 'AdamW_SGD':
         if opt_config['type'] in ['FP16AdamW_SGD', 'AdamW_SGD']:
             text_config = opt_config['text_config']
             visual_config = opt_config['visual_config']
@@ -266,14 +268,14 @@ class ClsSolver(BaseSolver):
             if len(visual_parameters) > 0:
                 param_group.append(
                     {'params': visual_parameters, **visual_config})
-            #for text_module in self.model.module.text_modules():
+            # for text_module in self.model.module.text_modules():
             self.logger.critical('[Info] param group: Text-module')
             for idx, text_module in enumerate(self.model.module.text_modules()):
                 self.logger.info(f'[Info] text param group {idx}')
                 param_group_text, type2num = param_group_all(
                     text_module, pconfig, text_config)
                 param_group += param_group_text
-            #for visual_module in self.model.module.visual_modules():
+            # for visual_module in self.model.module.visual_modules():
             self.logger.critical('[Info] param group: Visual-module')
             for idx, visual_module in enumerate(self.model.module.visual_modules()):
                 self.logger.info(f'[Info] visual param group {idx}')
@@ -305,7 +307,9 @@ class ClsSolver(BaseSolver):
         if not getattr(self.config.lr_scheduler.kwargs, 'max_iter', False):
             self.config.lr_scheduler.kwargs.max_iter = self.config.data.max_iter
         self.config.lr_scheduler.kwargs.optimizer = self.optimizer.optimizer if isinstance(self.optimizer, FP16SGD) or \
-            isinstance(self.optimizer, FP16RMSprop) or isinstance(self.optimizer, FP16AdamW) else self.optimizer
+                                                                                isinstance(self.optimizer,
+                                                                                           FP16RMSprop) or isinstance(
+            self.optimizer, FP16AdamW) else self.optimizer
         self.config.lr_scheduler.kwargs.last_iter = self.state['last_iter']
         self.lr_scheduler = scheduler_entry(self.config.lr_scheduler)
 
@@ -345,7 +349,7 @@ class ClsSolver(BaseSolver):
         self.meters.step_time = AverageMeter(self.config.saver.print_freq)
         self.meters.data_time = AverageMeter(self.config.saver.print_freq)
         self.meters.losses = AverageMeter(self.config.saver.print_freq)
-        self.meters.clip_losses = AverageMeter(self.config.saver.print_freq)                         
+        self.meters.clip_losses = AverageMeter(self.config.saver.print_freq)
         self.meters.simsiam_losses = AverageMeter(self.config.saver.print_freq)
         self.meters.text_simsiam_losses = AverageMeter(self.config.saver.print_freq)
         self.meters.clip_nn_text_losses = AverageMeter(self.config.saver.print_freq)
@@ -354,7 +358,7 @@ class ClsSolver(BaseSolver):
         self.meters.top1 = AverageMeter(self.config.saver.print_freq)
         self.meters.top5 = AverageMeter(self.config.saver.print_freq)
         self.meters.filip_losses = AverageMeter(self.config.saver.print_freq)
-        
+
         self.model.train()
 
         label_smooth = self.config.get('label_smooth', 0.0)
@@ -386,14 +390,13 @@ class ClsSolver(BaseSolver):
         end = time.time()
         last_logit_scale = 0
         logit_scale = EMA_logit_scale(self.model.module.logit_scale,
-                          self.config.grad_clip.value)
-        #test 
+                                      self.config.grad_clip.value)
+        # test
         train_loss = 1000.0
-        #test_top1_prec = 0.0
-        #for id, val_data in enumerate(self.val_data):
+        # test_top1_prec = 0.0
+        # for id, val_data in enumerate(self.val_data):
         #    metrics = self.evaluate(val_data)
         #    test_top1_prec = metrics.metric['top1']
-
 
         # import ipdb;ipdb.set_trace()
         for i in range(len(self.train_data['loader'])):
@@ -401,7 +404,7 @@ class ClsSolver(BaseSolver):
                 batch = self.prefetcher.next()
             else:
                 batch = next(self.train_data['loader'])
-        # for i, batch in enumerate(self.train_data['loader']):
+            # for i, batch in enumerate(self.train_data['loader']):
             # images = batch['images']
             # texts = [caption[0] fro caption in batch['captions']] # use first caption of each image
             curr_step = start_step + i
@@ -436,7 +439,8 @@ class ClsSolver(BaseSolver):
             if 'CLSA' not in self.config.data.train.transforms.type:
                 output_dict = self.model(batch, return_dict=True)
                 logits_per_image, logits_per_image_2, logits_per_text, logits_per_text_2 = output_dict['logits']
-                logits_per_image_1_aug, logits_per_image_2_aug, logits_per_text_1_aug, logits_per_text_2_aug = output_dict['logits_aug']
+                logits_per_image_1_aug, logits_per_image_2_aug, logits_per_text_1_aug, logits_per_text_2_aug = \
+                output_dict['logits_aug']
                 p1, p2, z1, z2 = output_dict['simsiam_features']
                 text_features, image_features_1, image_features_2 = output_dict['features']
                 # loss
@@ -458,52 +462,50 @@ class ClsSolver(BaseSolver):
                 else:
                     text_mlm_loss = torch.zeros_like(clip_loss)
 
-                    
                 if 'filip' in output_dict.keys():
-                    logits_per_image_dense_1, logits_per_text_dense_1 = output_dict['filip'] 
+                    logits_per_image_dense_1, logits_per_text_dense_1 = output_dict['filip']
                     filip_loss, filip_target = self.criterion(logits_per_image_dense_1, logits_per_text_dense_1)
-                    
-                    
+
                     if 'filip_aug' in output_dict.keys():
-                        logits_per_image_dense_2, logits_per_text_dense_2, logits_per_image_dense_3, logits_per_text_dense_3, logits_per_image_dense_4, logits_per_text_dense_4 = output_dict['filip_aug']
-                        
+                        logits_per_image_dense_2, logits_per_text_dense_2, logits_per_image_dense_3, logits_per_text_dense_3, logits_per_image_dense_4, logits_per_text_dense_4 = \
+                        output_dict['filip_aug']
+
                         filip_loss2, filip_target2 = self.criterion(logits_per_image_dense_2, logits_per_text_dense_2)
                         filip_loss3, filip_target3 = self.criterion(logits_per_image_dense_3, logits_per_text_dense_3)
                         filip_loss4, filip_target4 = self.criterion(logits_per_image_dense_4, logits_per_text_dense_4)
-                        
-                        
-                        
+
                         filip_loss = (filip_loss + filip_loss2 + filip_loss3 + filip_loss4) / 4
-                    
+
                     filip_loss /= self.dist.world_size
                 else:
                     filip_loss = torch.zeros_like(clip_loss)
-                    
+
                 if 'nn_text_simsiam' in output_dict.keys():
                     p_text, z_text_nn = output_dict['nn_text_simsiam']
                     z_text_nn = z_text_nn[0]
-                    simsiam_nn_text_loss = self.simsiam_criterion(p_text,z_text_nn,p_text,z_text_nn, return_KPI=True)
+                    simsiam_nn_text_loss = self.simsiam_criterion(p_text, z_text_nn, p_text, z_text_nn, return_KPI=True)
                     simsiam_nn_text_loss = simsiam_nn_text_loss / self.dist.world_size  # z1d; z2d constructed
                 else:
                     simsiam_nn_text_loss = torch.zeros_like(clip_loss)
 
                 if 'text_simsiam' in output_dict.keys():
                     p1t, p2t, z1t, z2t = output_dict['text_simsiam']
-                    text_simsiam_loss = self.simsiam_criterion(p1t,z1t,p2t,z2t) / self.dist.world_size
+                    text_simsiam_loss = self.simsiam_criterion(p1t, z1t, p2t, z2t) / self.dist.world_size
                 else:
                     text_simsiam_loss = torch.zeros_like(clip_loss)
 
                 if 'nn_text_logits' in output_dict.keys():
-                    logits_per_image_1_nn, logits_per_image_2_nn, logits_per_image_1_nn_aug, logits_per_image_2_nn_aug = output_dict['nn_text_logits']
+                    logits_per_image_1_nn, logits_per_image_2_nn, logits_per_image_1_nn_aug, logits_per_image_2_nn_aug = \
+                    output_dict['nn_text_logits']
                     clip_loss_i1_nn, _ = self.criterion(logits_per_image_1_nn, logits_per_image_1_nn_aug)
                     clip_loss_i2_nn, _ = self.criterion(logits_per_image_2_nn, logits_per_image_2_nn_aug)
-                    clip_nn_text_loss = (clip_loss_i1_nn+clip_loss_i2_nn)/2
+                    clip_nn_text_loss = (clip_loss_i1_nn + clip_loss_i2_nn) / 2
                     clip_nn_text_loss = clip_nn_text_loss / self.dist.world_size
                     # print(clip_loss_i_nn, '<< clip loss i nn', flush=True)
                 else:
                     clip_nn_text_loss = torch.zeros_like(clip_loss)
 
-                simsiam_loss = self.simsiam_criterion(p1,z1,p2,z2) / self.dist.world_size
+                simsiam_loss = self.simsiam_criterion(p1, z1, p2, z2) / self.dist.world_size
 
                 nt_xent_loss_1 = self.nt_xent_criterion(image_features_1, text_features)
                 nt_xent_loss_2 = self.nt_xent_criterion(image_features_2, text_features)
@@ -514,14 +516,16 @@ class ClsSolver(BaseSolver):
                 logits_per_image, logits_per_image_2, logits_per_image_3, logits_per_image_4, logits_per_text, logits_per_text_2, logits_per_text_3, logits_per_text_4, \
                 z1, z2, z3, z4, p1, p2, p3, p4, text_features, image_features_1 = self.model(batch)
                 clip_loss_1, target = self.criterion(logits_per_image, logits_per_text)
-                clip_loss_2, target_2 = self.criterion(logits_per_image_2, logits_per_text_2) 
+                clip_loss_2, target_2 = self.criterion(logits_per_image_2, logits_per_text_2)
                 clip_loss_3, target_3 = self.criterion(logits_per_image_3, logits_per_text_3)
-                #clip_loss_4, target_4 = self.criterion(logits_per_image_4, logits_per_text_4)
+                # clip_loss_4, target_4 = self.criterion(logits_per_image_4, logits_per_text_4)
                 clip_loss = (clip_loss_1 + clip_loss_2 + clip_loss_3) / 3
-                #clip_loss = (clip_loss_1 + clip_loss_2) / 2
+                # clip_loss = (clip_loss_1 + clip_loss_2) / 2
                 clip_loss /= self.dist.world_size
-                #simsiam_loss = (self.simsiam_criterion(p1,z1,p2,z2) + self.simsiam_criterion(p1,z1,p3,z3) + self.simsiam_criterion(p1,z1,p4,z4) + self.simsiam_criterion(p2,z2,p3,z3) + self.simsiam_criterion(p2,z2,p4,z4)) / 5
-                simsiam_loss = (self.simsiam_criterion(p1,z1,p2,z2) + self.simsiam_criterion(p1,z1,p3,z3) + self.simsiam_criterion(p1,z1,p4,z4)) / 3
+                # simsiam_loss = (self.simsiam_criterion(p1,z1,p2,z2) + self.simsiam_criterion(p1,z1,p3,z3) + self.simsiam_criterion(p1,z1,p4,z4) + self.simsiam_criterion(p2,z2,p3,z3) + self.simsiam_criterion(p2,z2,p4,z4)) / 5
+                simsiam_loss = (self.simsiam_criterion(p1, z1, p2, z2) + self.simsiam_criterion(p1, z1, p3,
+                                                                                                z3) + self.simsiam_criterion(
+                    p1, z1, p4, z4)) / 3
                 simsiam_loss /= self.dist.world_size
 
                 nt_xent_loss = self.nt_xent_criterion(image_features_1, text_features) / self.dist.world_size
@@ -537,27 +541,28 @@ class ClsSolver(BaseSolver):
                     loss = loss + text_simsiam_loss * self.config.clip_simsiam_loss_weight.text_simsiam_loss
                 if self.config.clip_simsiam_loss_weight.get('nn_text', 0):
                     loss = loss + clip_nn_text_loss * self.config.clip_simsiam_loss_weight.nn_text
-                    
+
                 if self.config.clip_simsiam_loss_weight.get('filip', 0):
                     loss = loss + filip_loss * self.config.clip_simsiam_loss_weight.filip
-                    # print(clip_nn_text_loss, '<< nn text loss', flush=True)    
-                
+                    # print(clip_nn_text_loss, '<< nn text loss', flush=True)
+
             elif self.config.clip_simsiam_loss_weight.get('type', None) == 'convirt':
-                loss = (clip_loss + nt_xent_loss) / 2 * self.config.clip_simsiam_loss_weight.clip_loss + simsiam_loss * self.config.clip_simsiam_loss_weight.simsiam_loss
+                loss = (
+                                   clip_loss + nt_xent_loss) / 2 * self.config.clip_simsiam_loss_weight.clip_loss + simsiam_loss * self.config.clip_simsiam_loss_weight.simsiam_loss
             elif self.config.clip_simsiam_loss_weight.get('type', None) == 'linear':
                 base_clip_loss_weight = 0.2
                 update_clip_loss_weight = 0.8 * curr_step / total_step
                 clip_loss_weight = base_clip_loss_weight + update_clip_loss_weight
                 simsiam_loss_weight = 1.0 - clip_loss_weight
-                loss = clip_loss  * clip_loss_weight + simsiam_loss * simsiam_loss_weight
+                loss = clip_loss * clip_loss_weight + simsiam_loss * simsiam_loss_weight
 
             elif self.config.clip_simsiam_loss_weight.get('type', None) == 'shift':
-                if curr_step%2==0:
+                if curr_step % 2 == 0:
                     clip_loss_weight, simsiam_loss_weight = 1.0, 0.0
                 else:
                     clip_loss_weight, simsiam_loss_weight = 0.0, 1.0
                 loss = clip_loss * clip_loss_weight + simsiam_loss * simsiam_loss_weight
-            
+
             # measure accuracy and record loss
             if False:
                 prec1, prec5 = accuracy(
@@ -574,15 +579,17 @@ class ClsSolver(BaseSolver):
             reduced_text_mlm_loss = text_mlm_loss.clone()
             reduced_nt_xent_loss = nt_xent_loss.clone()
             reduced_filip_loss = filip_loss.clone()
-            
+
             reduced_prec1 = prec1.clone() / self.dist.world_size
             reduced_prec5 = prec5.clone() / self.dist.world_size
 
             resume = False
             # if math.isnan(self.meters.losses.avg) or self.meters.losses.avg > train_loss + 0.5:
-            if math.isnan(self.meters.losses.avg) or math.isnan(reduced_loss) or reduced_loss > self.meters.losses.avg + 10:
+            if math.isnan(self.meters.losses.avg) or math.isnan(
+                    reduced_loss) or reduced_loss > self.meters.losses.avg + 10:
                 resume = False
-                self.logger.info(f'[ERROR] Training Loss Crashed,lr:{current_lr},prec1:{prec1},curr_step:{curr_step}, meters.losses.avg:{self.meters.losses.avg}, reduced_loss:{reduced_loss}, reduced_filip_loss: {reduced_filip_loss}')
+                self.logger.info(
+                    f'[ERROR] Training Loss Crashed,lr:{current_lr},prec1:{prec1},curr_step:{curr_step}, meters.losses.avg:{self.meters.losses.avg}, reduced_loss:{reduced_loss}, reduced_filip_loss: {reduced_filip_loss}')
             else:
                 self.meters.losses.reduce_update(reduced_loss)
                 self.meters.clip_losses.reduce_update(reduced_clip_loss)
@@ -597,11 +604,12 @@ class ClsSolver(BaseSolver):
             # print(f'[Rank {self.dist.rank}] self.meters.losses.avg:{self.meters.losses.avg}, current_lr:{current_lr}', flush=True)
 
             if curr_step % 20 == 0:
-                self.logger.info(f'[Rank {self.dist.rank}] self.meters.losses.avg:{self.meters.losses.avg}, current_lr:{current_lr}')
+                self.logger.info(
+                    f'[Rank {self.dist.rank}] self.meters.losses.avg:{self.meters.losses.avg}, current_lr:{current_lr}')
                 train_loss = self.meters.losses.avg
 
             if curr_step % self.config.saver.print_freq == 0:
-                last_checkpoint_step = ((curr_step -1) // 200 -5) * 200
+                last_checkpoint_step = ((curr_step - 1) // 200 - 5) * 200
                 pretrain_path = f'{self.path.save_path}/ckpt_{last_checkpoint_step}.pth.tar'
                 if self.dist.rank == 0:
                     if os.path.exists(pretrain_path):  # remove
@@ -610,17 +618,17 @@ class ClsSolver(BaseSolver):
 
             if resume:
                 link.barrier()
-                #loss = clip_loss.mean()
+                # loss = clip_loss.mean()
                 self.optimizer.zero_grad()
                 self.optimizer.backward(loss)
                 self.optimizer.step()
                 torch.cuda.empty_cache()
 
-                #last_checkpoint = self.find_last_checkpoint()
-                #self.config.saver.pretrain.path = last_checkpoint
-                #last_checkpoint_step = curr_step - 11
+                # last_checkpoint = self.find_last_checkpoint()
+                # self.config.saver.pretrain.path = last_checkpoint
+                # last_checkpoint_step = curr_step - 11
                 for t in range(-3, 1):
-                    last_checkpoint_step = ((curr_step -1) // 200 + t) * 200
+                    last_checkpoint_step = ((curr_step - 1) // 200 + t) * 200
                     self.config.saver.pretrain.path = f'{self.path.save_path}/ckpt_{last_checkpoint_step}.pth.tar'
                     if os.path.exists(self.config.saver.pretrain.path):
                         break
@@ -632,15 +640,15 @@ class ClsSolver(BaseSolver):
                         load_state_model(self.model, self.state['model'])
                     self.config.lr_scheduler.kwargs.warmup_lr *= 0.997
                     self.build_optimizer()
-                    #self.build_data()
+                    # self.build_data()
                     self.build_lr_scheduler()
-                    #start_step = last_checkpoint_step -i + 11
+                    # start_step = last_checkpoint_step -i + 11
                     start_step = last_checkpoint_step - i
                     if self.dist.rank == 0:
                         self.logger.info(f'[ERROR] Training Loss Crashed,lr:{current_lr},start_step:{start_step}')
                         self.logger.info(f'[ERROR] recover from {self.config.saver.pretrain.path}')
 
-                        #save curr_step ckpt & resave curr_step-1-2-3 ckpt
+                        # save curr_step ckpt & resave curr_step-1-2-3 ckpt
                         self.logger.info(f'save ckpt {last_checkpoint_step}')
                         curr_ckpt = f'{self.path.save_path}_k_times/ckpt_{last_checkpoint_step}.pth.tar'
                         cmd_ckpt = f'cp {self.config.saver.pretrain.path} {curr_ckpt}'
@@ -649,7 +657,6 @@ class ClsSolver(BaseSolver):
                     continue
                 else:
                     raise Exception('The training process crashed! And we cannot find a suitable ckpt')
-
 
             # compute and update gradient
             self.optimizer.zero_grad()
@@ -662,23 +669,28 @@ class ClsSolver(BaseSolver):
                 elif self.config.grad_clip.type == 'logit_scale_param_abs_min':
                     self.model.module.logit_scale.data.clamp_(min=self.config.grad_clip.value)
                 elif self.config.grad_clip.type == 'logit_scale_param_value':  # clip param
-                    self.model.module.logit_scale.data.clamp_(min=self.config.grad_clip.value, max=self.config.grad_clip.max_value)
-                    self.model.module.logit_scale_dense.data.clamp_(min=self.config.grad_clip.value, max=self.config.grad_clip.max_value)
+                    self.model.module.logit_scale.data.clamp_(min=self.config.grad_clip.value,
+                                                              max=self.config.grad_clip.max_value)
+                    self.model.module.logit_scale_dense.data.clamp_(min=self.config.grad_clip.value,
+                                                                    max=self.config.grad_clip.max_value)
+
             def param_clip_after():
                 if self.config.grad_clip.type == 'logit_scale_param':
                     after = self.model.module.logit_scale.data.item()
                     tem = self.model.module.logit_scale.data
-                    if (after-before) > self.config.grad_clip.value:
+                    if (after - before) > self.config.grad_clip.value:
                         self.model.module.logit_scale.data = torch.as_tensor(
-                            before+self.config.grad_clip.value, dtype=tem.dtype, device=tem.device)
-                    elif (before-after) > self.config.grad_clip.value:
+                            before + self.config.grad_clip.value, dtype=tem.dtype, device=tem.device)
+                    elif (before - after) > self.config.grad_clip.value:
                         self.model.module.logit_scale.data = torch.as_tensor(
-                            before-self.config.grad_clip.value, dtype=tem.dtype, device=tem.device)
+                            before - self.config.grad_clip.value, dtype=tem.dtype, device=tem.device)
                 elif self.config.grad_clip.type == 'logit_scale_param_abs_min':
                     self.model.module.logit_scale.data.clamp_(min=self.config.grad_clip.value)
                 elif self.config.grad_clip.type == 'logit_scale_param_value':  # clip param
-                    self.model.module.logit_scale.data.clamp_(min=self.config.grad_clip.value, max=self.config.grad_clip.max_value)
-                    self.model.module.logit_scale_dense.data.clamp_(min=self.config.grad_clip.value, max=self.config.grad_clip.max_value)
+                    self.model.module.logit_scale.data.clamp_(min=self.config.grad_clip.value,
+                                                              max=self.config.grad_clip.max_value)
+                    self.model.module.logit_scale_dense.data.clamp_(min=self.config.grad_clip.value,
+                                                                    max=self.config.grad_clip.max_value)
 
             def grad_clip_before():  # before update(optimizer.step)
                 if self.config.grad_clip.type == 'norm':
@@ -690,11 +702,12 @@ class ClsSolver(BaseSolver):
                 elif self.config.grad_clip.type == 'logit_scale_grad':
                     clip_param_grad_value_(
                         self.model.module.logit_scale, self.config.grad_clip.value)
+
             def grad_clip_after():
                 pass
 
             param_clip_before()
-            #print(f'Before link [Rank {self.dist.rank}] self.meters.losses.avg:{self.meters.losses.avg}, current_lr:{current_lr}, logit_scale:{self.model.module.logit_scale}', flush=True)
+            # print(f'Before link [Rank {self.dist.rank}] self.meters.losses.avg:{self.meters.losses.avg}, current_lr:{current_lr}, logit_scale:{self.model.module.logit_scale}', flush=True)
             if self.fused_fp16:
                 self.optimizer.backward(loss)
                 self.model.sync_gradients()
@@ -715,6 +728,7 @@ class ClsSolver(BaseSolver):
                         self.check_model_and_grad(10)
                     grad_clip_after()
                     return loss
+
                 self.optimizer.step(closure)
             else:
                 loss.backward()
@@ -736,9 +750,9 @@ class ClsSolver(BaseSolver):
                 logit_scale.clamp()
                 logit_scale.update()
             # if self.dist.rank == 0:
-                # print('*****************after_buffer', logit_scale.buffer)
-                # print('*****************after_param', logit_scale.param)
-                # EMA
+            # print('*****************after_buffer', logit_scale.buffer)
+            # print('*****************after_param', logit_scale.param)
+            # EMA
             if self.ema is not None:
                 self.ema.step(self.model, curr_step=curr_step)
             # measure elapsed time
@@ -754,7 +768,7 @@ class ClsSolver(BaseSolver):
                 self.tb_logger.add_scalar(
                     'simsiam_loss_train', self.meters.simsiam_losses.avg, curr_step)
                 self.tb_logger.add_scalar(
-                    'nt_xent_loss_train', self.meters.nt_xent_losses.avg, curr_step)                
+                    'nt_xent_loss_train', self.meters.nt_xent_losses.avg, curr_step)
                 self.tb_logger.add_scalar(
                     'text_mlm_loss', self.meters.text_mlm_losses.avg, curr_step)
                 self.tb_logger.add_scalar(
@@ -773,38 +787,38 @@ class ClsSolver(BaseSolver):
                 self.tb_logger.add_scalar(
                     'logit_scale', self.model.module.logit_scale, curr_step)
                 self.tb_logger.add_scalar(
-                    'delta_logit_scale', self.model.module.logit_scale-last_logit_scale, curr_step)
+                    'delta_logit_scale', self.model.module.logit_scale - last_logit_scale, curr_step)
                 self.tb_logger.add_scalar(
                     'logit_scale_grad', self.model.module.logit_scale.grad, curr_step)
                 self.tb_logger.add_scalar(
                     'clip_number', logit_scale.clip_number, curr_step)
 
                 remain_secs = (total_step - curr_step) * \
-                    self.meters.batch_time.avg
+                              self.meters.batch_time.avg
                 remain_time = datetime.timedelta(seconds=round(remain_secs))
                 finish_time = time.strftime(
-                    "%Y-%m-%d %H:%M:%S", time.localtime(time.time()+remain_secs))
-                    # f'CLIP-NN-Text Loss {self.meters.clip_nn_text_losses.val:.4f} ({self.meters.clip_nn_text_losses.avg:.4f})\t' \
+                    "%Y-%m-%d %H:%M:%S", time.localtime(time.time() + remain_secs))
+                # f'CLIP-NN-Text Loss {self.meters.clip_nn_text_losses.val:.4f} ({self.meters.clip_nn_text_losses.avg:.4f})\t' \
                 log_msg = f'Iter: [{curr_step}/{total_step}]\t' \
-                    f'Time {self.meters.batch_time.val:.3f} ({self.meters.batch_time.avg:.3f})\t' \
-                    f'Data {self.meters.data_time.val:.3f} ({self.meters.data_time.avg:.3f})\t' \
-                    f'Loss {self.meters.losses.val:.4f} ({self.meters.losses.avg:.4f})\t' \
-                    f'Clip Loss {self.meters.clip_losses.val:.4f} ({self.meters.clip_losses.avg:.4f})\t' \
-                    f'Filip Loss {self.meters.filip_losses.val:.4f} ({self.meters.filip_losses.avg:.4f})\t' \
-                    f'Simsiam Loss {self.meters.simsiam_losses.val:.4f} ({self.meters.simsiam_losses.avg:.4f})\t' \
-                    f'Text Simsiam Loss {self.meters.text_simsiam_losses.val:.4f} ({self.meters.text_simsiam_losses.avg:.4f})\t' \
-                    f'Clip NN Text Loss {self.meters.clip_nn_text_losses.val:.4f} ({self.meters.clip_nn_text_losses.avg:.4f})\t' \
-                    f'Text MLM Loss {self.meters.text_mlm_losses.val:.4f} ({self.meters.text_mlm_losses.avg:.4f})\t' \
-                    f'Nt_xent Loss {self.meters.nt_xent_losses.val:.4f} ({self.meters.nt_xent_losses.avg:.4f})\t' \
-                    f'Prec@1 {self.meters.top1.val:.3f} ({self.meters.top1.avg:.3f})\t' \
-                    f'Prec@5 {self.meters.top5.val:.3f} ({self.meters.top5.avg:.3f})\t' \
-                    f'LR {current_lr:.4f}\t' \
-                    f'logit_scale_exp {float(self.model.module.logit_scale.exp()):.4f}\t' \
-                    f'logit_scale {float(self.model.module.logit_scale):.4f}\t' \
-                    f'delta_logit_scale {float(self.model.module.logit_scale-last_logit_scale):.4f}\t' \
-                    f'logit_scale_grad {float(self.model.module.logit_scale.grad):.4f}\t' \
-                    f'clip_number {logit_scale.clip_number:.1f}\t' \
-                    f'Remaining Time {remain_time} ({finish_time})'
+                          f'Time {self.meters.batch_time.val:.3f} ({self.meters.batch_time.avg:.3f})\t' \
+                          f'Data {self.meters.data_time.val:.3f} ({self.meters.data_time.avg:.3f})\t' \
+                          f'Loss {self.meters.losses.val:.4f} ({self.meters.losses.avg:.4f})\t' \
+                          f'Clip Loss {self.meters.clip_losses.val:.4f} ({self.meters.clip_losses.avg:.4f})\t' \
+                          f'Filip Loss {self.meters.filip_losses.val:.4f} ({self.meters.filip_losses.avg:.4f})\t' \
+                          f'Simsiam Loss {self.meters.simsiam_losses.val:.4f} ({self.meters.simsiam_losses.avg:.4f})\t' \
+                          f'Text Simsiam Loss {self.meters.text_simsiam_losses.val:.4f} ({self.meters.text_simsiam_losses.avg:.4f})\t' \
+                          f'Clip NN Text Loss {self.meters.clip_nn_text_losses.val:.4f} ({self.meters.clip_nn_text_losses.avg:.4f})\t' \
+                          f'Text MLM Loss {self.meters.text_mlm_losses.val:.4f} ({self.meters.text_mlm_losses.avg:.4f})\t' \
+                          f'Nt_xent Loss {self.meters.nt_xent_losses.val:.4f} ({self.meters.nt_xent_losses.avg:.4f})\t' \
+                          f'Prec@1 {self.meters.top1.val:.3f} ({self.meters.top1.avg:.3f})\t' \
+                          f'Prec@5 {self.meters.top5.val:.3f} ({self.meters.top5.avg:.3f})\t' \
+                          f'LR {current_lr:.4f}\t' \
+                          f'logit_scale_exp {float(self.model.module.logit_scale.exp()):.4f}\t' \
+                          f'logit_scale {float(self.model.module.logit_scale):.4f}\t' \
+                          f'delta_logit_scale {float(self.model.module.logit_scale - last_logit_scale):.4f}\t' \
+                          f'logit_scale_grad {float(self.model.module.logit_scale.grad):.4f}\t' \
+                          f'clip_number {logit_scale.clip_number:.1f}\t' \
+                          f'Remaining Time {remain_time} ({finish_time})'
                 self.logger.critical(log_msg)
             last_logit_scale = self.model.module.logit_scale.clone()
 
@@ -843,7 +857,7 @@ class ClsSolver(BaseSolver):
                     if self.ema is not None:
                         self.state['ema'] = self.ema.state_dict()
                     torch.save(self.state, ckpt_name)
-                    if curr_step % (self.config.saver.save_freq*20) == 0:
+                    if curr_step % (self.config.saver.save_freq * 20) == 0:
                         print('save model kth')
                         k_times_save_path = f'{self.path.save_path}_k_times'
                         if not os.path.exists(k_times_save_path):
@@ -855,39 +869,35 @@ class ClsSolver(BaseSolver):
             end = time.time()
             # import ipdb
             # ipdb.set_trace()
-            
-            
+
     def get_logits(self, dense_feat_1, selected_feat_2):
         i, j, k = dense_feat_1.shape
         l, m, k = selected_feat_2.shape
         dense_feat_1 = dense_feat_1.reshape(-1, k)
         selected_feat_2 = selected_feat_2.reshape(-1, k)
-        final_logits_1 =  dense_feat_1 @ selected_feat_2.t()
-        final_logits_1 = final_logits_1.reshape(i, j, l, m).permute(0,2,1,3)
+        final_logits_1 = dense_feat_1 @ selected_feat_2.t()
+        final_logits_1 = final_logits_1.reshape(i, j, l, m).permute(0, 2, 1, 3)
 
-        return final_logits_1.max(dim=-1)[0].mean(dim=-1)   
-    
+        return final_logits_1.max(dim=-1)[0].mean(dim=-1)
+
     @torch.no_grad()
     def evaluate(self, val_data):
         self.model.eval()
         res_file = os.path.join(self.path.result_path,
                                 f'results.txt.rank{self.dist.rank}')
         writer = open(res_file, 'w')
-        
-        
-        
 
         if False:
-            
+
             print('filip_evaluate')
-            
+
             label_text, label_text_ensemble_matrix = val_data['loader'].dataset.get_label_texts()
             label_num = label_text_ensemble_matrix.shape[1]
             prompts_num = len(label_text) // label_num
             self.logger.info('Use {} prompts'.format(prompts_num))
             label_text_preds = []
             for i in range(label_num):
-                label_text_pred = self.model.module.encode_text_dense(label_text[i*prompts_num:(i+1)*prompts_num])
+                label_text_pred = self.model.module.encode_text_dense(label_text[i * prompts_num:(i + 1) * prompts_num])
                 label_text_pred /= (label_text_pred.norm(dim=-1, keepdim=True))
                 label_text_pred = label_text_pred.mean(dim=0)
                 label_text_pred /= label_text_pred.norm()
@@ -897,20 +907,17 @@ class ClsSolver(BaseSolver):
 
             label_text_ensemble_matrix = label_text_ensemble_matrix.to(
                 label_text_preds)
-            
 
             for batch_idx, batch in enumerate(val_data['loader']):
                 input = batch['images']
                 input = input.cuda().half() if self.fp16 else input.cuda()
-                
+
                 image_preds = self.model.module.encode_image_dense(input)
 
                 image_preds = image_preds / \
-                    (image_preds.norm(dim=-1, keepdim=True))
-                                 
-                                 
-                logits = self.get_logits(image_preds, label_text_preds)                 
+                              (image_preds.norm(dim=-1, keepdim=True))
 
+                logits = self.get_logits(image_preds, label_text_preds)
 
                 scores = F.softmax(logits, dim=1) @ label_text_ensemble_matrix
                 # compute prediction
@@ -933,15 +940,15 @@ class ClsSolver(BaseSolver):
             # broadcast metrics to other process
             metrics = broadcast_object(metrics)
             self.model.train()
-            return metrics                 
-        else:                         
+            return metrics
+        else:
             label_text, label_text_ensemble_matrix = val_data['loader'].dataset.get_label_texts()
             label_num = label_text_ensemble_matrix.shape[1]
             prompts_num = len(label_text) // label_num
             self.logger.info('Use {} prompts'.format(prompts_num))
             label_text_preds = []
             for i in range(label_num):
-                label_text_pred = self.model.module.encode_text(label_text[i*prompts_num:(i+1)*prompts_num])
+                label_text_pred = self.model.module.encode_text(label_text[i * prompts_num:(i + 1) * prompts_num])
                 label_text_pred /= (label_text_pred.norm(dim=-1, keepdim=True))
                 label_text_pred = label_text_pred.mean(dim=0)
                 label_text_pred /= label_text_pred.norm()
@@ -951,7 +958,6 @@ class ClsSolver(BaseSolver):
 
             label_text_ensemble_matrix = label_text_ensemble_matrix.to(
                 label_text_preds)
-
 
             for batch_idx, batch in enumerate(val_data['loader']):
                 input = batch['images']
@@ -963,13 +969,9 @@ class ClsSolver(BaseSolver):
                 else:
                     image_preds = self.model.module.encode_image(input)
 
-
-
                 image_preds = image_preds / \
-                    (image_preds.norm(dim=-1, keepdim=True))
+                              (image_preds.norm(dim=-1, keepdim=True))
                 logits = image_preds @ label_text_preds.t()
-
-
 
                 scores = F.softmax(logits, dim=1) @ label_text_ensemble_matrix
                 # compute prediction

@@ -97,8 +97,8 @@ class ClsSolver(BaseSolver):
         # ipdb.set_trace()
         self.build_model()
         self.build_optimizer()
-        self.build_data()
-        self.build_lr_scheduler()
+        # self.build_data()
+        # self.build_lr_scheduler()
         # send_info(self.prototype_info)
 
     def setup_env(self):
@@ -231,10 +231,11 @@ class ClsSolver(BaseSolver):
             # Note: The module is converted to fp16!
             self.model.half()
 
-        self.model = DistModule(self.model, self.config.dist.sync)
+        # self.model = DistModule(self.model, self.config.dist.sync)
 
         if 'model' in self.state:
-            load_state_model(self.model, self.state['model'])
+            # load_state_model(self.model, self.state['model'])
+            load_state_model(self.model, {k.replace("module.", ""):v for k,v in self.state['model'].items()})
 
     def build_optimizer(self):
 

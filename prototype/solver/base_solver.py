@@ -4,9 +4,10 @@ from prototype.utils.misc import parse_config
 
 class BaseSolver(object):
 
-    def __init__(self, config_file):
+    def __init__(self, config_file, verbose: bool = False):
         config = parse_config(config_file)
-        pprint(config)
+        if verbose:
+            pprint(config)
 
     def setup_envs(self):
         raise NotImplementedError
