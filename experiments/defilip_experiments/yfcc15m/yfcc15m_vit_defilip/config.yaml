@@ -3,19 +3,19 @@ model:
     type: defilip_vitb32
     kwargs:
         image_encode:
-            embed_dim: 768
+            embed_dim: 512
         text_encode:
             bpe_path: ./resources/bpe/bpe_simple_vocab_16e6.txt.gz
             text_encode_type: Transformer #Transformer,Bert,GPT2
             text_model_utils:
                 random: False
                 freeze: False
-            embed_dim: 768
+            embed_dim: 512
         clip:
             use_allgather: True
             text_mask_type: MLM
             return_nn_bank: True
-            feature_dim: 768
+            feature_dim: 512
             return_filip: True
 
 dist:
@@ -138,4 +138,4 @@ saver:
     save_many: False
     pretrain:
         auto_resume: False
-        path: ./resources/checkpoints/yfcc15m/vitb32_filip.pth.tar
+        path: ./resources/checkpoints/yfcc15m/r50_defilip.pth.tar

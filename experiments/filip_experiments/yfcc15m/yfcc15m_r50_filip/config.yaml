@@ -8,7 +8,7 @@ model:
             use_sync_bn: True
             embed_dim: 1024
         text_encode:
-            bpe_path: '../../../../text_info/bpe_simple_vocab_16e6.txt.gz'
+            bpe_path: ./resources/bpe/bpe_simple_vocab_16e6.txt.gz
             text_encode_type: Transformer #Transformer,Bert,GPT2
             text_model_utils:
                 random: False
@@ -93,14 +93,11 @@ data:
 
     train:
         root_dir: [
-#                    'cluster4:s3://GCC/AdamGCC',
-                    'cluster2:s3://yfcc100m-part/data/',
-                   ]
+            cluster2:s3://yfcc100m-part/data/,
+        ]
         meta_file: [
-                    # '/mnt/lustre/share_data/zhaolichen/dataset/gvm_gcc/gcc_train_v0.1.json',
-#                    '/mnt/cache/share_data/liyangguang/gcc_train_v0.1.json',
-                   '../../../../imagenet_info/yfcc15m_clean_open_data.json',
-                    ]
+            ./resources/imagenet_info/yfcc15m_clean_open_data.json,
+        ]
         image_reader:
             type: pil
         sampler:
@@ -123,9 +120,8 @@ data:
         input_size: 224
         test_resize: 256
         test:
-            root_dir: '/mnt/lustre/share/images/val/'
-#             meta_file: '../../../../imagenet_info/val.json'
-            meta_file: '../../../../imagenet_info/val_official.json'
+            root_dir: /mnt/lustre/share/images/val/
+            meta_file: ./resources/imagenet_info/val_official.json
             # you can change it to imagenet_info relative path, file already in gitlab
             image_reader:
                 type: pil
@@ -146,4 +142,5 @@ saver:
     save_freq: 500
     save_many: False
     pretrain:
-        auto_resume: True
+        auto_resume: False
+        path: ./resources/checkpoints/yfcc15m/r50_filip.pth.tar
